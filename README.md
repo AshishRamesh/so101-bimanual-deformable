@@ -1,15 +1,14 @@
-# lehome-smolvla
+# so101-bimanual-deformable
 
-Tooling and configs for training a **SmolVLA** policy and running it in the
-[LeHome Challenge 2026](https://lehome-challenge.com/) simulator (ICRA 2026 —
-garment / deformable-object manipulation with the SO-ARM101, built on Isaac Lab
-+ LeRobot).
+Tooling and configs for training a **SmolVLA** vision-language-action policy for
+**bimanual SO-101 deformable-object (garment) manipulation** — folding cloth in
+an Isaac Lab + LeRobot simulator.
 
-> This repo contains **only my own files** — none of the upstream
-> `lehome-official/lehome-challenge` code, assets, or datasets. The files here
-> are meant to be dropped into a clone of that repo (or its prebuilt Docker
-> image), which provides the Isaac Sim environment, `scripts.eval`, and
-> `lerobot-train`.
+> This repo contains **only my own files** (training configs + a sim/eval
+> launcher) — no third-party simulator code, assets, or datasets. The commands
+> below run against an external Isaac Lab garment-manipulation environment
+> (provided as a Docker image), which supplies the sim, `scripts.eval`, and
+> `lerobot-train`; install that separately.
 
 ## Contents
 
