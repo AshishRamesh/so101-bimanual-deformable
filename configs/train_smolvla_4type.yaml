@@ -1,0 +1,44 @@
+  # SmolVLA fine-tune across ALL 4 garment types (top_long/short, pant_long/short)
+  # for broad garment competence. Fine-tunes from lerobot/smolvla_base.
+  # Memory-safe for 8GB (frozen vision encoder, train_expert_only).
+  #
+  # batch_size is validated before the overnight launch (target 4, fall back 2).
+  # steps sized for an overnight (~12h) run; checkpoints every 15k.
+dataset:
+  repo_id: repo_smolvla_4type
+  root: Datasets/example/four_types_merged
+
+policy:
+  type: smolvla
+  pretrained_path: lerobot/smolvla_base
+  device: cuda
+  push_to_hub: false
+
+  input_features:
+    observation.state:
+      type: STATE
+      shape: [12]
+    observation.images.top_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+    observation.images.left_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+    observation.images.right_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+
+  output_features:
+    action:
+      type: ACTION
+      shape: [12]
+
+output_dir: outputs/train/smolvla_4type
+batch_size: 4
+steps: 120000
+save_freq: 15000
+log_freq: 100
+num_workers: 2
+
+wandb:
+  enable: false
