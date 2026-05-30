@@ -1,0 +1,42 @@
+  # Memory-trimmed SmolVLA fine-tune for an 8GB GPU (short DEMO run).
+  # Derived from configs/train_smolvla.yaml. Fine-tunes from the public
+  # lerobot/smolvla_base checkpoint. Under-trained by design -> expect
+  # clumsy rollouts; this verifies the SmolVLA -> sim pipeline end to end.
+dataset:
+  repo_id: repo_smolvla
+  root: Datasets/example/top_long_merged
+
+policy:
+  type: smolvla
+  pretrained_path: lerobot/smolvla_base
+  device: cuda
+  push_to_hub: false
+
+  input_features:
+    observation.state:
+      type: STATE
+      shape: [12]
+    observation.images.top_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+    observation.images.left_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+    observation.images.right_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+
+  output_features:
+    action:
+      type: ACTION
+      shape: [12]
+
+output_dir: outputs/train/smolvla_top_long_demo
+batch_size: 2
+steps: 800
+save_freq: 400
+log_freq: 50
+num_workers: 2
+
+wandb:
+  enable: false

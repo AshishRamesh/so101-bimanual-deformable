@@ -1,0 +1,45 @@
+  # Full SmolVLA fine-tune aimed at actually solving the fold task.
+  # Memory-safe for an 8GB GPU (small batch, frozen vision encoder,
+  # train_expert_only). Fine-tunes from lerobot/smolvla_base on the full
+  # top_long dataset (250 episodes) for the challenge's 30k-step schedule.
+  #
+  # ~0.21 s/step at batch 2  ->  30k steps ~= 1.75-2 h on RTX 2000 Ada.
+  # If you have headroom, try batch_size: 4 (drop back to 2 if it OOMs).
+dataset:
+  repo_id: repo_smolvla
+  root: Datasets/example/top_long_merged
+
+policy:
+  type: smolvla
+  pretrained_path: lerobot/smolvla_base
+  device: cuda
+  push_to_hub: false
+
+  input_features:
+    observation.state:
+      type: STATE
+      shape: [12]
+    observation.images.top_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+    observation.images.left_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+    observation.images.right_rgb:
+      type: VISUAL
+      shape: [3, 480, 640]
+
+  output_features:
+    action:
+      type: ACTION
+      shape: [12]
+
+output_dir: outputs/train/smolvla_top_long_fold
+batch_size: 2
+steps: 30000
+save_freq: 5000
+log_freq: 250
+num_workers: 2
+
+wandb:
+  enable: false

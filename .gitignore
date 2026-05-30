@@ -1,0 +1,15 @@
+# Large / reproducible artifacts — never commit
+outputs/
+Assets/
+Datasets/
+
+# Python / env
+__pycache__/
+*.pyc
+.venv/
+*.safetensors
+*.ckpt
+
+# OS / editor
+.DS_Store
+*.swp
