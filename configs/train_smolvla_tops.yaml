@@ -1,0 +1,52 @@
+  # Tops-only SmolVLA fine-tune (top_long + top_short) tuned for ZERO-SHOT sim->real
+  # on a big GPU (RTX 5090 / 32GB). No real teleop data — transfer comes from:
+  #   - frozen vision encoder (SmolVLM pretrained on REAL images = good sim->real prior)
+  #   - strong domain randomization (image_transforms) so it can't memorize the sim look
+  #   - weight decay + LR decay across the whole run
+  #   - frequent checkpoints -> pick the one that maxes UNSEEN-sim success (anti-overfit)
+  #
+  # batch_size 16 fits comfortably in ~28GB free. Try 24/32 for a bit more; if it OOMs
+  # drop back. If you change batch, scale steps to keep ~10-15 epochs
+  # (1 epoch of tops_merged ~= 165k frames / batch).
+dataset:
+  repo_id: repo_smolvla_tops
+  root: Datasets/example/tops_merged
+  image_transforms:
+    enable: true
+    max_num_transforms: 5
+    random_order: true
+    tfs:
+      brightness: { type: ColorJitter,     weight: 1.0, kwargs: { brightness: [0.5, 1.5] } }
+      contrast:   { type: ColorJitter,     weight: 1.0, kwargs: { contrast:   [0.5, 1.5] } }
+      saturation: { type: ColorJitter,     weight: 1.0, kwargs: { saturation: [0.3, 1.7] } }
+      hue:        { type: ColorJitter,     weight: 1.0, kwargs: { hue:        [-0.1, 0.1] } }
+      sharpness:  { type: SharpnessJitter, weight: 1.0, kwargs: { sharpness:  [0.3, 2.0] } }
+      affine:     { type: RandomAffine,    weight: 1.0, kwargs: { degrees: [-8.0, 8.0], translate: [0.08, 0.08] } }
+
+policy:
+  type: smolvla
+  pretrained_path: lerobot/smolvla_base
+  device: cuda
+  push_to_hub: false
+  scheduler_warmup_steps: 2000
+  scheduler_decay_steps: 100000      # match `steps` so LR never floors early
+  optimizer_weight_decay: 1.0e-4     # regularize (default ~1e-10 = none)
+  # freeze_vision_encoder defaults True — keep it for zero-shot transfer.
+
+  input_features:
+    observation.state:            { type: STATE,  shape: [12] }
+    observation.images.top_rgb:   { type: VISUAL, shape: [3, 480, 640] }
+    observation.images.left_rgb:  { type: VISUAL, shape: [3, 480, 640] }
+    observation.images.right_rgb: { type: VISUAL, shape: [3, 480, 640] }
+  output_features:
+    action: { type: ACTION, shape: [12] }
+
+output_dir: outputs/train/smolvla_tops
+batch_size: 16
+steps: 100000
+save_freq: 10000
+log_freq: 100
+num_workers: 8
+
+wandb:
+  enable: false
