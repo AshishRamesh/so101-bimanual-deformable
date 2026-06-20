@@ -24,43 +24,56 @@ fi
 source "$VENV/bin/activate"
 python -m pip install -q -U pip wheel
 
-echo "==> [2/6] LeRobot $LEROBOT_VERSION + hf CLI"
+echo "==> [2/6] LeRobot $LEROBOT_VERSION (pulls a compatible huggingface_hub[cli])"
 if python -c "import lerobot, sys; sys.exit(0 if lerobot.__version__=='$LEROBOT_VERSION' else 1)" 2>/dev/null; then
   echo "    lerobot $LEROBOT_VERSION present"
 else
   pip install -q "lerobot==$LEROBOT_VERSION"
 fi
-pip install -q -U "huggingface_hub[cli]"
+# Do NOT upgrade huggingface_hub past lerobot's pin (<0.36); 1.x also drops the [cli] extra.
+# Pin it in-range and ensure the `hf` CLI is present.
+pip install -q "huggingface_hub[cli,hf-transfer]>=0.34.2,<0.36.0"
 
-echo "==> [3/6] ensure Blackwell-capable torch (RTX 50xx needs CUDA 12.8+)"
-# If torch can't see the GPU, install the cu128 build. Comment out if not on Blackwell.
-if ! python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
-  echo "    installing torch (cu128)…"
-  pip install -q -U torch torchvision --index-url https://download.pytorch.org/whl/cu128
-fi
-python - <<'PY'
-import torch
-print(f"    torch={torch.__version__} cuda={torch.version.cuda} avail={torch.cuda.is_available()}")
-assert torch.cuda.is_available(), "CUDA GPU not visible — fix torch install before training"
-print(f"    gpu={torch.cuda.get_device_name(0)}")
+echo "==> [3/6] ensure torch actually runs on this GPU (Blackwell sm_120 needs cu128)"
+# NOTE: torch.cuda.is_available() can be True while kernels are missing for the
+# GPU's arch (e.g. cu126 torch on an RTX 5090). So we launch a REAL kernel.
+gpu_ok() {
+  python - <<'PY' 2>/dev/null
+import torch, sys
+try:
+    assert torch.cuda.is_available()
+    (torch.randn(8, device="cuda") * 2).sum().item()   # forces a kernel launch
+except Exception:
+    sys.exit(1)
 PY
+}
+if gpu_ok; then
+  echo "    CUDA kernels OK"
+else
+  echo "    GPU kernels incompatible (likely cu126 on Blackwell) -> installing cu128 torch…"
+  pip install -q -U torch torchvision --index-url https://download.pytorch.org/whl/cu128
+  gpu_ok || { echo "    STILL failing — see https://pytorch.org/get-started/locally/ (need a build for your GPU arch)"; exit 1; }
+  echo "    fixed"
+fi
+python -c "import torch; print('    torch', torch.__version__, '| gpu', torch.cuda.get_device_name(0))"
 
 echo "==> [4/6] download tops datasets (long + short)"
 mkdir -p "$DATA_DIR"
+# Always call hf download — it's idempotent and COMPLETES partial dirs
+# (a previous run may have left a folder that exists but is missing files).
 for sub in top_long_merged top_short_merged; do
-  if [ -d "$DATA_DIR/$sub" ]; then
-    echo "    $sub present"
-  else
-    echo "    downloading $sub …"
-    hf download lehome/dataset_challenge_merged --include "$sub/*" \
-      --repo-type dataset --local-dir "$DATA_DIR"
-  fi
+  echo "    syncing $sub …"
+  hf download lehome/dataset_challenge_merged --include "$sub/*" \
+    --repo-type dataset --local-dir "$DATA_DIR"
 done
 
 echo "==> [5/6] merge -> tops_merged"
-if [ -d "$DATA_DIR/tops_merged" ]; then
+# Only treat as done if the merge actually finished (meta/info.json present);
+# otherwise wipe any half-built dir and redo it.
+if [ -f "$DATA_DIR/tops_merged/meta/info.json" ]; then
   echo "    tops_merged present"
 else
+  rm -rf "$DATA_DIR/tops_merged"
   python - <<'PY'
 from pathlib import Path
 from lerobot.datasets.aggregate import aggregate_datasets
