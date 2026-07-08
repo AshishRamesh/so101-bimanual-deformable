@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
-# Train a bimanual cup-stacking SmolVLA from base on Pandeyjiya024/bimanual-cup-stacking-merged.
+# Train a bimanual cup-stacking SmolVLA from base on Pandeyjiya024/bimanual-cup-stacking-v2.
 # Same-env inference (no domain gap, no camera rename). Pure lerobot (no Isaac). Run after ./setup.sh.
 #   ./train_cupstack.sh
 set -euo pipefail
 
 VENV="${VENV:-$HOME/.venv-so101}"
-DATA_DIR="Datasets/cupstack"
+DATA_DIR="Datasets/cupstack_v2"
 CFG="configs/train_cupstack.yaml"
+DATASET_REPO="Pandeyjiya024/bimanual-cup-stacking-v2"   # 82 eps (35 orig + 47 new), already merged
 
-# ---- knobs (35 eps / 45k frames -> small; ~30 epochs @ batch 16; ~5-6 h on 5090) ----
+# ---- knobs (82 eps / 95k frames; ~25 epochs @ batch 16; ~14 h on 5090 @ 0.34 s/step) ----
 BATCH=16
-STEPS=85000
-SAVE_FREQ=8500        # ~10 checkpoints -> in-env test a few, pick best (likely not the last)
+STEPS=150000
+SAVE_FREQ=15000       # ~10 checkpoints -> in-env test a few, pick best (likely not the last)
 LR=1.0e-4
-# -------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
 
 # shellcheck disable=SC1091
-source "$VENV/bin/activate"
+# activate the venv only if it exists; otherwise assume an env is already active (e.g. conda)
+if [ -f "$VENV/bin/activate" ]; then source "$VENV/bin/activate"; else echo "    using current env (no venv at $VENV — e.g. conda)"; fi
 mkdir -p configs logs outputs
 
 echo "==> [1/4] download dataset"
 if [ -f "$DATA_DIR/meta/info.json" ]; then
   echo "    present"
 else
-  hf download Pandeyjiya024/bimanual-cup-stacking-merged --repo-type dataset --local-dir "$DATA_DIR"
+  hf download "$DATASET_REPO" --repo-type dataset --local-dir "$DATA_DIR"
 fi
 
 echo "==> [2/4] verify it loads (catches any file_index metadata quirk)"
@@ -87,5 +89,5 @@ else
   echo "    !! SMOKE TEST FAILED — see logs/smoke_cupstack.log"; tail -25 logs/smoke_cupstack.log; exit 1
 fi
 
-echo "==> launching cup-stacking training ($STEPS steps, ~30 epochs)"
+echo "==> launching cup-stacking training ($STEPS steps, ~25 epochs)"
 lerobot-train --config_path="$CFG" 2>&1 | tee "logs/cupstack_$(date +%Y%m%d_%H%M%S).log"
